@@ -5,9 +5,9 @@ from settings import *
 from collections import deque, defaultdict
 
 RANK_THRESHOLD = 3
-STATION_RANGE = 5
 STOP_BUILDING_THRESHOLD = 25
-NEIGHBOR_MAP_THRESHOLD = 3
+NEIGHBOR_MAP_THRESHOLD = 5
+STATION_RANGE = 5
 
 class Player(BasePlayer):
 
@@ -84,7 +84,6 @@ class Player(BasePlayer):
 
         graph = self.state.get_graph()
         visited = set((s, 0) for s in self.stations)
-
         visiting = deque((s, 0) for s in self.stations)
 
         results = []
@@ -114,11 +113,10 @@ class Player(BasePlayer):
         for i in xrange(0, len(path)-1):
             graph[path[i]][path[i+1]]['in_use'] = True
 
-    def determine_stations(self, orders):
+    def determine_stations(self, orders, commands):
         graph = self.state.get_graph()
-        order_commands = []
         fulfilled_orders = []
-        print orders
+        #print orders
         for (order, val) in orders:
             queue = deque([(order.node, [])])
             visited = set()
@@ -143,11 +141,11 @@ class Player(BasePlayer):
 
             if order_fulfilled and order.get_money() - len(path) > 0:
                 fulfilled_orders.insert(0, order)
-                order_commands.append(self.send_command(order, path[::-1]))
+                commands.append(self.send_command(order, path[::-1]))
                 self.mark_as_used(path, graph)
 
         unfulfilled = [(o, v) for (o, v) in orders if o not in fulfilled_orders]
-        return order_commands, unfulfilled
+        return unfulfilled
 
     def step(self, state):
         """
@@ -167,18 +165,17 @@ class Player(BasePlayer):
 
         # Step 1: compute order heuristics
         order_heuristics = self.compute_heuristic()
-        if (self.state.time < 1):
-            print order_heuristics
 
         # Step 2: find paths for orders, return unfulfilled orders
-        commands, unfulfilled = self.determine_stations(order_heuristics)
+        commands = []
+        unfulfilled = self.determine_stations(order_heuristics, commands)
 
         # Step 3: add new stations if worth
         if (len(unfulfilled) > 0 and
             len(self.stations) < self.state.graph.number_of_nodes() and
             GAME_LENGTH - self.state.time >= STOP_BUILDING_THRESHOLD):
             for (order, heuristic) in unfulfilled:
-                print "order:", order, "heuristic:", heuristic
+                #print "order:", order, "heuristic:", heuristic
 
                 # If we have no money, stop trying to build
                 cost = self.new_station_cost()
@@ -192,8 +189,8 @@ class Player(BasePlayer):
                     self.state.money -= self.new_station_cost()
                     self.stations.append(new_station)
 
-        # Step 4: should probably rerun step 2 (send more commands using new stations)
-
+        # Step 4: Rerun step 2 (send more commands using new stations)
+        self.determine_stations(order_heuristics, commands)
         return commands
 
     def new_station_cost(self):
