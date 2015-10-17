@@ -113,7 +113,7 @@ class Player(BasePlayer):
 
 
     def is_fulfilled(self, order, distance):
-        print DISTANCE_FACTOR/distance + self.order_value(order, distance)
+        if distance = 0: return True
         return DISTANCE_FACTOR/distance + self.order_value(order, distance) > 50
 
     def determine_stations(self, orders, commands, update_rank=True):
