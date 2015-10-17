@@ -6,8 +6,7 @@ from collections import deque, defaultdict
 
 RANK_THRESHOLD = 3
 STOP_BUILDING_THRESHOLD = 25
-NEIGHBOR_MAP_THRESHOLD = 5
-STATION_RANGE = 5
+STATION_RANGE_MULTIPLIER = 0.8
 
 class Player(BasePlayer):
 
@@ -21,6 +20,7 @@ class Player(BasePlayer):
     stations = [] # list of graph nodes
     neighbor_map = dict()
     rank_map = defaultdict(int)
+    station_range = 5
 
     def __init__(self, state):
         """
@@ -37,6 +37,8 @@ class Player(BasePlayer):
             (i, INIT_BUILD_COST * (BUILD_FACTOR ** i)) for i in xrange(state.graph.number_of_nodes())
         ])
 
+        self.station_range = int(nx.diameter(state.graph) * STATION_RANGE_MULTIPLIER)
+
         for node in state.graph.nodes():
             self.neighbor_map[node] = dict()
             queue = deque([(node, 0)])
@@ -48,7 +50,7 @@ class Player(BasePlayer):
                     self.neighbor_map[node][depth].update(set([n]))
                 else:
                     self.neighbor_map[node][depth] = set([n])
-                if depth < NEIGHBOR_MAP_THRESHOLD:
+                if depth < self.station_range:
                     neighbors = state.graph.neighbors(n)
                     filtered_neighbors = [n for n in neighbors if n not in visited]
                     queue.extend([(n, depth + 1) for n in filtered_neighbors])
@@ -189,7 +191,7 @@ class Player(BasePlayer):
                     self.stations.append(new_station)
 
         # Step 4: Rerun step 2 (send more commands using new stations)
-        self.determine_stations(order_heuristics, commands, update_rank=False)
+        self.determine_stations(unfulfilled, commands, update_rank=False)
         return commands
 
     def new_station_cost(self):
@@ -201,9 +203,9 @@ class Player(BasePlayer):
         Compute the optimal location for adding a new station near
         an unfulfilled station.
         """
-        # Get all neighbors within STATION_RANGE depth away from order node
+        # Get all neighbors within self.station_range depth away from order node
         neighbors = reduce(lambda x,y: x | y,
-                           [self.neighbor_map[order.node][d] for d in xrange(STATION_RANGE)])
+                           [self.neighbor_map[order.node][d] for d in xrange(self.station_range)])
         # If there is already a station within range, don't build another
         if any([s in neighbors for s in self.stations]):
             return None
