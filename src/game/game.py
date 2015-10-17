@@ -200,7 +200,7 @@ class Game:
             log.warning("Attempted to step after game is over")
             return
 
-        log.info("~~~~~~~ TIME %04d ~~~~~~~" % self.state.get_time())
+        #log.info("~~~~~~~ TIME %04d ~~~~~~~" % self.state.get_time())
 
         G = self.state.get_graph()
 
