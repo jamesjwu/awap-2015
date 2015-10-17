@@ -80,12 +80,13 @@ class Player(BasePlayer):
     def determine_stations(self, orders):
         graph = self.state.get_graph()
         order_commands = []
-
+        fulfilled_orders = []
         for (order, val) in orders:
             queue = deque([order.node])
             visited = set()
             path = []
             discovery_map = dict()
+            order_fulfilled = False
             while len(queue) > 0:
                 node = queue.popleft()
                 if node in self.stations:
@@ -97,6 +98,7 @@ class Player(BasePlayer):
                         graph.edge[parent][curr_node].in_use = True
                         curr_node = parent
                     path.insert(0, order.node)
+                    order_fulfilled = True
                     break
                 visited.add(node)
                 path.append(node)
@@ -106,10 +108,12 @@ class Player(BasePlayer):
                 for n in filtered_neighbors:
                     discovery_map[n] = node
 
-            print path
-            order_commands.append(self.send_command(order, path))
+            if order_fulfilled:
+                fulfilled_orders.insert(0, order)
+                order_commands.append(self.send_command(order, path))
 
-        return order_commands
+        unfulfilled = [o for o in orders if o not in fulfilled_orders]
+        return order_commands, fulfilled_orders
 
     def step(self, state):
         """
@@ -140,7 +144,7 @@ class Player(BasePlayer):
         sorted_orders = self.compute_heuristic()
         # print "HEURISTIC:" + str(sorted_orders)
 
-        order_commands = self.determine_stations(sorted_orders)
+        order_commands, unfulfilled = self.determine_stations(sorted_orders)
         # print "ASSIGNING STATIONS:" + str(order_commands)
 
         pending_orders = state.get_pending_orders()
