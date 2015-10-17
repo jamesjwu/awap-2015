@@ -84,43 +84,42 @@ class Player(BasePlayer):
 
         return sorted(results, key=lambda x: -x[1])
 
+    def mark_as_used(self, path, graph):
+        for i in xrange(0, len(path)-1):
+            graph[path[i]][path[i+1]]['in_use'] = True
+
     def determine_stations(self, orders):
         graph = self.state.get_graph()
         order_commands = []
         fulfilled_orders = []
         for (order, val) in orders:
-            queue = deque([order.node])
+            queue = deque([(order.node, [])])
             visited = set()
-            path = []
             discovery_map = dict()
             order_fulfilled = False
-            while len(queue) > 0:
-                node = queue.popleft()
+            while queue:
+                node, path = queue.popleft()
                 if node in self.stations:
                     curr_node = node
-                    path.insert(0, curr_node)
-                    while curr_node != order.node:
-                        parent = discovery_map[curr_node]
-                        path.insert(0, parent)
-                        graph.edge[parent][curr_node].in_use = True
-                        curr_node = parent
-                    path.insert(0, order.node)
+                    path.append(node)
                     order_fulfilled = True
                     break
                 visited.add(node)
                 path.append(node)
                 neighbors = graph.neighbors(node)
-                filtered_neighbors = [n for n in neighbors if n not in visited and not graph.edge[node][n]['in_use']]
+                filtered_neighbors = [(n, path[:]) for n in neighbors if n not in visited and not graph.edge[node][n]['in_use']]
                 queue.extend(filtered_neighbors)
-                for n in filtered_neighbors:
-                    discovery_map[n] = node
+
+                print path[::-1]
 
             if order_fulfilled:
                 fulfilled_orders.insert(0, order)
-                order_commands.append(self.send_command(order, path))
+                order_commands.append(self.send_command(order, path[::-1]))
+                self.mark_as_used(path, graph)
 
+        print orders
         unfulfilled = [(o, v) for (o, v) in orders if o not in fulfilled_orders]
-        return order_commands, fulfilled_orders
+        return order_commands, unfulfilled
 
     def step(self, state):
         """
@@ -149,7 +148,7 @@ class Player(BasePlayer):
         # Step 3: add new stations if worth
         if len(unfulfilled) > 0 and len(self.stations) < self.state.graph.number_of_nodes():
             for (order, heuristic) in unfulfilled:
-                #print "order:", order, "heuristic:", heuristic
+                print "order:", order, "heuristic:", heuristic
                 if self.happy(order, heuristic) > HAPPY_THRESHOLD:
                     print "building a station at", order.node
                     commands.append(self.build_command(order.node))
