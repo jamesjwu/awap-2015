@@ -50,7 +50,7 @@ class Player(BasePlayer):
         """
         if not self.stations:
             all_orders = sorted(self.state.get_pending_orders(), key=lambda x: -x.get_money())
-            return [(i, value(i) for i in all_orders]
+            return [(i, self.value(i, 0)) for i in all_orders]
 
         graph = self.state.get_graph()
         visited = set((s, 0) for s in self.stations)
