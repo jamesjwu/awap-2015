@@ -48,6 +48,10 @@ class Player(BasePlayer):
         """
         Runs multisource BFS to calculate the heuristic of orders
         """
+        if not self.stations:
+            all_orders = sorted(self.state.get_pending_orders(), key=lambda x: -x.get_money())
+            return [(i, value(i) for i in all_orders]
+
         graph = self.state.get_graph()
         visited = set((s, 0) for s in self.stations)
 
@@ -98,7 +102,6 @@ class Player(BasePlayer):
         commands = []
         if not self.has_built_station:
             commands.append(self.build_command(station))
-            self.stations.append(station)
             self.has_built_station = True
 
         print "HEURISTIC:" + str(self.compute_heuristic())
