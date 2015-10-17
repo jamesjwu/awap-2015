@@ -119,7 +119,7 @@ class Player(BasePlayer):
 
     def determine_stations(self, orders, commands, update_rank=True):
         graph = self.state.get_graph()
-        fulfilled_orders = []
+        fulfilled_orders = set()
         #print orders
         for (order, val) in orders:
             queue = deque([(order.node, [])])
@@ -137,7 +137,7 @@ class Player(BasePlayer):
                     path.append(node)
                     order_fulfilled = True
                     if self.is_fulfilled(order, len(path)-1):
-                        fulfilled_orders.append(order)
+                        fulfilled_orders.add(order)
                         commands.append(self.send_command(order, path[::-1]))
                         self.mark_as_used(path, graph)
                     break
@@ -176,10 +176,9 @@ class Player(BasePlayer):
         unfulfilled = self.determine_stations(order_heuristics, commands)
         built = False
         # Step 3: add new stations if worth
-        if (len(self.stations) < self.state.graph.number_of_nodes() and
-            GAME_LENGTH - self.state.time >= STOP_BUILDING_THRESHOLD):
-
-            while unfulfilled:
+        if GAME_LENGTH - self.state.time >= STOP_BUILDING_THRESHOLD:
+            n = self.state.graph.number_of_nodes()
+            while len(self.stations) < n and unfulfilled:
                 (order, heuristic) = unfulfilled.popleft()
                 #print "order:", order, "heuristic:", heuristic
 
