@@ -6,7 +6,7 @@ from collections import deque, defaultdict
 
 RANK_THRESHOLD = 3
 STOP_BUILDING_THRESHOLD = 25
-STATION_RANGE_MULTIPLIER = .8
+STATION_RANGE_MULTIPLIER = 0.5
 DISTANCE_FACTOR = 40
 class Player(BasePlayer):
 
@@ -36,7 +36,7 @@ class Player(BasePlayer):
             (i, INIT_BUILD_COST * (BUILD_FACTOR ** i)) for i in xrange(state.graph.number_of_nodes())
         ])
 
-        self.station_range = int(nx.radius(state.graph) * STATION_RANGE_MULTIPLIER)
+        self.station_range = max(1, int(nx.radius(state.graph) * STATION_RANGE_MULTIPLIER))
 
         for node in state.graph.nodes():
             self.neighbor_map[node] = dict()
@@ -114,7 +114,7 @@ class Player(BasePlayer):
 
     def is_fulfilled(self, order, distance):
         if distance == 0: return True
-        return DISTANCE_FACTOR/distance + self.order_value(order, distance) > 50
+        return DISTANCE_FACTOR/distance + self.order_value(order, distance) > 0
 
     def determine_stations(self, orders, commands, update_rank=True):
         graph = self.state.get_graph()
