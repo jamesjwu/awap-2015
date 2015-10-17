@@ -3,9 +3,9 @@ import random
 from base_player import BasePlayer
 from settings import *
 from collections import deque, defaultdict
-
-RANK_THRESHOLD = 3
-STOP_BUILDING_THRESHOLD = 25
+import game
+RANK_MULTIPLIER = .5
+STOP_BUILDING_THRESHOLD = 800
 STATION_RANGE_MULTIPLIER = 0.5
 DISTANCE_FACTOR = 40
 class Player(BasePlayer):
@@ -30,13 +30,14 @@ class Player(BasePlayer):
         state : State
             The initial state of the game. See state.py for more information.
         """
-
         # Precompute cost of the i^th station as map
         self.station_costs = dict([
             (i, INIT_BUILD_COST * (BUILD_FACTOR ** i)) for i in xrange(state.graph.number_of_nodes())
         ])
 
         self.station_range = max(1, int(nx.radius(state.graph) * STATION_RANGE_MULTIPLIER))
+        global RANK_THRESHOLD
+        RANK_THRESHOLD = max(1, RANK_MULTIPLIER * int(nx.radius(state.graph)))
 
         for node in state.graph.nodes():
             self.neighbor_map[node] = dict()
@@ -114,7 +115,7 @@ class Player(BasePlayer):
 
     def is_fulfilled(self, order, distance):
         if distance == 0: return True
-        return DISTANCE_FACTOR/distance + self.order_value(order, distance) > 0
+        return DISTANCE_FACTOR/distance + self.order_value(order, distance) > 10
 
     def determine_stations(self, orders, commands, update_rank=True):
         graph = self.state.get_graph()
@@ -135,18 +136,18 @@ class Player(BasePlayer):
                     curr_node = node
                     path.append(node)
                     order_fulfilled = True
+                    if self.is_fulfilled(order, len(path)-1):
+                        fulfilled_orders.append(order)
+                        commands.append(self.send_command(order, path[::-1]))
+                        self.mark_as_used(path, graph)
                     break
+
                 visited.add(node)
                 path.append(node)
                 neighbors = graph.neighbors(node)
                 filtered_neighbors = [(n, path[:]) for n in neighbors if n not in visited and not graph.edge[node][n]['in_use']]
                 queue.extend(filtered_neighbors)
 
-
-            if order_fulfilled and self.is_fulfilled(order, len(path)-1):
-                fulfilled_orders.insert(0, order)
-                commands.append(self.send_command(order, path[::-1]))
-                self.mark_as_used(path, graph)
 
         unfulfilled = deque([(o, v) for (o, v) in orders if o not in fulfilled_orders])
         return unfulfilled
@@ -173,10 +174,11 @@ class Player(BasePlayer):
         # Step 2: find paths for orders, return unfulfilled orders
         commands = []
         unfulfilled = self.determine_stations(order_heuristics, commands)
-
+        built = False
         # Step 3: add new stations if worth
         if (len(self.stations) < self.state.graph.number_of_nodes() and
             GAME_LENGTH - self.state.time >= STOP_BUILDING_THRESHOLD):
+
             while unfulfilled:
                 (order, heuristic) = unfulfilled.popleft()
                 #print "order:", order, "heuristic:", heuristic
@@ -190,11 +192,11 @@ class Player(BasePlayer):
                 if new_station is not None:
                     print "building a station at", new_station
                     commands.append(self.build_command(new_station))
+                    built = True
                     self.state.money -= self.new_station_cost()
                     self.stations.append(new_station)
-
                     # Rerun step 2 (find more paths to unfulfilled with new station)
-                    unfulfilled = self.determine_stations(unfulfilled, commands, update_rank=False)
+                    unfulfilled = self.determine_stations(orders=unfulfilled, commands=commands, update_rank=False)
 
         return commands
 
