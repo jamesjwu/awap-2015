@@ -4,10 +4,12 @@ from base_player import BasePlayer
 from settings import *
 from collections import deque, defaultdict
 import game
+
 RANK_MULTIPLIER = .5
 STOP_BUILDING_THRESHOLD = 800
 STATION_RANGE_MULTIPLIER = 0.5
 DISTANCE_FACTOR = 40
+
 class Player(BasePlayer):
 
     """
@@ -94,7 +96,6 @@ class Player(BasePlayer):
         while visiting:
             curr, distance = visiting.popleft()
             if curr in orders:
-                #print curr, " is an order "
                 results.append((orders[curr], self.order_value(orders[curr], distance)))
 
             for neighbor in graph.neighbors(curr):
@@ -120,7 +121,7 @@ class Player(BasePlayer):
     def determine_stations(self, orders, commands, update_rank=True):
         graph = self.state.get_graph()
         fulfilled_orders = set()
-        #print orders
+
         for (order, val) in orders:
             queue = deque([(order.node, [])])
             visited = set()
@@ -174,13 +175,11 @@ class Player(BasePlayer):
         # Step 2: find paths for orders, return unfulfilled orders
         commands = []
         unfulfilled = self.determine_stations(order_heuristics, commands)
-        built = False
         # Step 3: add new stations if worth
         if GAME_LENGTH - self.state.time >= STOP_BUILDING_THRESHOLD:
             n = self.state.graph.number_of_nodes()
             while len(self.stations) < n and unfulfilled:
                 (order, heuristic) = unfulfilled.popleft()
-                #print "order:", order, "heuristic:", heuristic
 
                 # If we have no money, stop trying to build
                 cost = self.new_station_cost()
@@ -189,9 +188,7 @@ class Player(BasePlayer):
 
                 new_station = self.find_happy_station(order, heuristic)
                 if new_station is not None:
-                    print "building a station at", new_station
                     commands.append(self.build_command(new_station))
-                    built = True
                     self.state.money -= self.new_station_cost()
                     self.stations.append(new_station)
                     # Rerun step 2 (find more paths to unfulfilled with new station)
@@ -217,5 +214,4 @@ class Player(BasePlayer):
 
         best_neighbor = max(neighbors, key=lambda v: self.rank_map[v])
 
-        # TODO: check if it's actually worth to build it here?
         return best_neighbor
