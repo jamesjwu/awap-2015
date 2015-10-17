@@ -18,10 +18,9 @@ class Player(BasePlayer):
 
     # You can set up static state here
     station_costs = dict()
-    # List of graph.nodes
-    stations = []
-
+    stations = [] # list of graph nodes
     neighbor_map = dict()
+    rank_map = defaultdict(int)
 
     def __init__(self, state):
         """
@@ -37,8 +36,6 @@ class Player(BasePlayer):
         self.station_costs = dict([
             (i, INIT_BUILD_COST * (BUILD_FACTOR ** i)) for i in xrange(state.graph.number_of_nodes())
         ])
-
-        self.rank_map = defaultdict(int)
 
         for node in state.graph.nodes():
             self.neighbor_map[node] = dict()
@@ -72,7 +69,7 @@ class Player(BasePlayer):
         Calculates the value of an order
         """
         # Currently returns the value of the order minus the distance
-        return order.get_money() - distance
+        return order.get_money() - distance * DECAY_FACTOR
 
     def compute_heuristic(self):
         """
@@ -139,7 +136,8 @@ class Player(BasePlayer):
                 queue.extend(filtered_neighbors)
 
 
-            if order_fulfilled and order.get_money() - len(path) > 0:
+            # TODO: do we want to leave super far away ones with a low value?
+            if order_fulfilled and self.order_value(order, len(path) - 1) > 0:
                 fulfilled_orders.insert(0, order)
                 commands.append(self.send_command(order, path[::-1]))
                 self.mark_as_used(path, graph)
@@ -206,7 +204,7 @@ class Player(BasePlayer):
         neighbors = reduce(lambda x,y: x | y,
                            [self.neighbor_map[order.node][d] for d in xrange(STATION_RANGE)])
         # If there is already a station within range, don't build another
-        if set(self.stations) & neighbors:
+        if any([s in neighbors for s in self.stations]):
             return None
 
         best_neighbor = max(list(neighbors), key=lambda v: self.rank_map[v])
