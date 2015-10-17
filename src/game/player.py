@@ -45,7 +45,7 @@ class Player(BasePlayer):
                 n, depth = queue.popleft()
                 visited.add(n)
                 if depth in self.neighbor_map[node]:
-                        self.neighbor_map[node][depth].update(set([n]))
+                    self.neighbor_map[node][depth].update(set([n]))
                 else:
                     self.neighbor_map[node][depth] = set([n])
                 if depth < NEIGHBOR_MAP_THRESHOLD:
@@ -110,7 +110,7 @@ class Player(BasePlayer):
         for i in xrange(0, len(path)-1):
             graph[path[i]][path[i+1]]['in_use'] = True
 
-    def determine_stations(self, orders, commands):
+    def determine_stations(self, orders, commands, update_rank=True):
         graph = self.state.get_graph()
         fulfilled_orders = []
         #print orders
@@ -121,7 +121,8 @@ class Player(BasePlayer):
             order_fulfilled = False
             while queue:
                 node, path = queue.popleft()
-                if len(path) < RANK_THRESHOLD:
+
+                if update_rank and len(path) < RANK_THRESHOLD:
                     self.rank_map[node] += RANK_THRESHOLD - len(path)
 
                 if node in self.stations:
@@ -188,7 +189,7 @@ class Player(BasePlayer):
                     self.stations.append(new_station)
 
         # Step 4: Rerun step 2 (send more commands using new stations)
-        self.determine_stations(order_heuristics, commands)
+        self.determine_stations(order_heuristics, commands, update_rank=False)
         return commands
 
     def new_station_cost(self):
@@ -207,7 +208,7 @@ class Player(BasePlayer):
         if any([s in neighbors for s in self.stations]):
             return None
 
-        best_neighbor = max(list(neighbors), key=lambda v: self.rank_map[v])
+        best_neighbor = max(neighbors, key=lambda v: self.rank_map[v])
 
         # TODO: check if it's actually worth to build it here?
         return best_neighbor
