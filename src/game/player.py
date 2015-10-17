@@ -5,6 +5,8 @@ from settings import *
 from collections import deque
 
 
+HAPPY_THRESHOLD = 20
+
 class Player(BasePlayer):
 
     """
@@ -13,7 +15,7 @@ class Player(BasePlayer):
     """
 
     # You can set up static state here
-    has_built_station = False
+    station_costs = dict()
     # List of graph.nodes
     stations = []
 
@@ -27,6 +29,11 @@ class Player(BasePlayer):
             The initial state of the game. See state.py for more information.
         """
 
+        # Precompute cost of the i^th station as map
+        self.station_costs = dict([
+            (i, INIT_BUILD_COST * (BUILD_FACTOR ** i)) for i in xrange(state.graph.number_of_nodes())
+        ])
+
         return
 
     # Checks if we can use a given path
@@ -37,7 +44,7 @@ class Player(BasePlayer):
                 return False
         return True
 
-    def value(self, order, distance):
+    def order_value(self, order, distance):
         """
         Calculates the value of an order
         """
@@ -50,7 +57,7 @@ class Player(BasePlayer):
         """
         if not self.stations:
             all_orders = sorted(self.state.get_pending_orders(), key=lambda x: -x.get_money())
-            return [(i, self.value(i, 0)) for i in all_orders]
+            return [(i, self.order_value(i, 0)) for i in all_orders]
 
         graph = self.state.get_graph()
         visited = set((s, 0) for s in self.stations)
@@ -66,8 +73,8 @@ class Player(BasePlayer):
         while visiting:
             curr, distance = visiting.popleft()
             if curr in orders:
-                print curr, " is an order "
-                results.append((orders[curr], self.value(orders[curr], distance)))
+                #print curr, " is an order "
+                results.append((orders[curr], self.order_value(orders[curr], distance)))
 
             for neighbor in graph.neighbors(curr):
                 # If we aren't using this edge
@@ -91,26 +98,55 @@ class Player(BasePlayer):
             Each command should be generated via self.send_command or
             self.build_command. The commands are evaluated in order.
         """
-
-        # We have implemented a naive bot for you that builds a single station
-        # and tries to find the shortest path from it to first pending order.
-        # We recommend making it a bit smarter ;-)
         self.state = state
         graph = state.get_graph()
-        station = graph.nodes()[0]
-
         commands = []
-        if not self.has_built_station:
-            commands.append(self.build_command(station))
-            self.has_built_station = True
 
-        print "HEURISTIC:" + str(self.compute_heuristic())
+        #if not self.has_built_station:
+        #    commands.append(self.build_command(station))
+        #    self.stations.append(station)
+        #    self.has_built_station = True
 
-        pending_orders = state.get_pending_orders()
-        if len(pending_orders) != 0:
-            order = random.choice(pending_orders)
-            path = nx.shortest_path(graph, station, order.get_node())
-            if self.path_is_valid(state, path):
-                commands.append(self.send_command(order, path))
+        #pending_orders = state.get_pending_orders()
+        #if len(pending_orders) != 0:
+        #    order = random.choice(pending_orders)
+        #    path = nx.shortest_path(graph, station, order.get_node())
+        #    if self.path_is_valid(state, path):
+        #        commands.append(self.send_command(order, path))
+
+        # Step 1: compute order heuristics
+        order_heuristics = self.compute_heuristic()
+        if (self.state.time < 1):
+            print order_heuristics
+
+        # Step 3: add new stations if worth
+        if len(order_heuristics) > 0 and len(self.stations) < self.state.graph.number_of_nodes():
+            for (order, heuristic) in order_heuristics:
+                #print "order:", order, "heuristic:", heuristic
+                if self.happy(order, heuristic) > HAPPY_THRESHOLD:
+                    print "building a station at", order.node
+                    commands.append(self.build_command(order.node))
+                    self.state.money -= self.new_station_cost()
+                    self.stations.append(order.node)
+
+                    # for now since we're building on top of orders, just fulfill it immediately
+                    commands.append(self.send_command(order, [order.node]))
+
+        # Step 4: should probably rerun step 2 (send more commands using new station)
 
         return commands
+
+    def new_station_cost(self):
+        """ Cost of building a new station """
+        return self.station_costs[len(self.stations)]
+
+    def happy(self, order, heuristic):
+        """
+        Compute the happiness we gain from building a new station at an
+        order location. -1 if we can't build
+        """
+        cost = self.new_station_cost()
+        can_build = self.state.money >= cost
+        happiness = self.state.money - cost + order.money
+        #print "HAPPINESS:", happiness
+        return happiness if can_build else -1
