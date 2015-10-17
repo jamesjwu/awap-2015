@@ -7,6 +7,7 @@ from collections import deque, defaultdict
 RANK_THRESHOLD = 3
 STATION_RANGE = 5
 STOP_BUILDING_THRESHOLD = 25
+NEIGHBOR_MAP_THRESHOLD = 3
 
 class Player(BasePlayer):
 
@@ -19,6 +20,8 @@ class Player(BasePlayer):
     station_costs = dict()
     # List of graph.nodes
     stations = []
+
+    neighbor_map = dict()
 
     def __init__(self, state):
         """
@@ -36,6 +39,23 @@ class Player(BasePlayer):
         ])
 
         self.rank_map = defaultdict(int)
+
+        for node in state.graph.nodes():
+            self.neighbor_map[node] = dict()
+            queue = deque([(node, 0)])
+            visited = set()
+            while queue:
+                n, depth = queue.popleft()
+                visited.add(n)
+                if depth in self.neighbor_map[node]:
+                        self.neighbor_map[node][depth].update(set([n]))
+                else:
+                    self.neighbor_map[node][depth] = set([n])
+                if depth < NEIGHBOR_MAP_THRESHOLD:
+                    neighbors = state.graph.neighbors(n)
+                    filtered_neighbors = [n for n in neighbors if n not in visited]
+                    queue.extend([(n, depth + 1) for n in filtered_neighbors])
+                    visited.update(filtered_neighbors)
 
         return
 
@@ -121,7 +141,7 @@ class Player(BasePlayer):
                 queue.extend(filtered_neighbors)
 
 
-            if order_fulfilled:
+            if order_fulfilled and order.get_money() - len(path) > 0:
                 fulfilled_orders.insert(0, order)
                 order_commands.append(self.send_command(order, path[::-1]))
                 self.mark_as_used(path, graph)
