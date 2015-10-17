@@ -4,7 +4,6 @@ from base_player import BasePlayer
 from settings import *
 from collections import deque
 
-
 class Player(BasePlayer):
 
     """
@@ -78,6 +77,40 @@ class Player(BasePlayer):
 
         return sorted(results, key=lambda x: -x[1])
 
+    def determine_stations(self, orders):
+        graph = self.state.get_graph()
+        order_commands = []
+
+        for (order, val) in orders:
+            queue = deque([order.node])
+            visited = set()
+            path = []
+            discovery_map = dict()
+            while len(queue) > 0:
+                node = queue.popleft()
+                if node in self.stations:
+                    curr_node = node
+                    path.insert(0, curr_node)
+                    while curr_node != order.node:
+                        parent = discovery_map[curr_node]
+                        path.insert(0, parent)
+                        graph.edge[parent][curr_node].in_use = True
+                        curr_node = parent
+                    path.insert(0, order.node)
+                    break
+                visited.add(node)
+                path.append(node)
+                neighbors = graph.neighbors(node)
+                filtered_neighbors = [n for n in neighbors if n not in visited and not graph.edge[node][n]['in_use']]
+                queue.extend(filtered_neighbors)
+                for n in filtered_neighbors:
+                    discovery_map[n] = node
+
+            print path
+            order_commands.append(self.send_command(order, path))
+
+        return order_commands
+
     def step(self, state):
         """
         Determine actions based on the current state of the city. Called every
@@ -104,7 +137,11 @@ class Player(BasePlayer):
             commands.append(self.build_command(station))
             self.has_built_station = True
 
-        print "HEURISTIC:" + str(self.compute_heuristic())
+        sorted_orders = self.compute_heuristic()
+        # print "HEURISTIC:" + str(sorted_orders)
+
+        order_commands = self.determine_stations(sorted_orders)
+        # print "ASSIGNING STATIONS:" + str(order_commands)
 
         pending_orders = state.get_pending_orders()
         if len(pending_orders) != 0:
