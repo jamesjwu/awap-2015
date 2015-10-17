@@ -6,8 +6,8 @@ from collections import deque, defaultdict
 
 RANK_THRESHOLD = 3
 STOP_BUILDING_THRESHOLD = 25
-STATION_RANGE_MULTIPLIER = 0.8
-
+STATION_RANGE_MULTIPLIER = .8
+DISTANCE_FACTOR = 40
 class Player(BasePlayer):
 
     """
@@ -20,7 +20,6 @@ class Player(BasePlayer):
     stations = [] # list of graph nodes
     neighbor_map = dict()
     rank_map = defaultdict(int)
-    station_range = 5
 
     def __init__(self, state):
         """
@@ -37,7 +36,7 @@ class Player(BasePlayer):
             (i, INIT_BUILD_COST * (BUILD_FACTOR ** i)) for i in xrange(state.graph.number_of_nodes())
         ])
 
-        self.station_range = int(nx.diameter(state.graph) * STATION_RANGE_MULTIPLIER)
+        self.station_range = int(nx.radius(state.graph) * STATION_RANGE_MULTIPLIER)
 
         for node in state.graph.nodes():
             self.neighbor_map[node] = dict()
@@ -112,6 +111,11 @@ class Player(BasePlayer):
         for i in xrange(0, len(path)-1):
             graph[path[i]][path[i+1]]['in_use'] = True
 
+
+    def is_fulfilled(self, order, distance):
+        print DISTANCE_FACTOR/distance + self.order_value(order, distance)
+        return DISTANCE_FACTOR/distance + self.order_value(order, distance) > 50
+
     def determine_stations(self, orders, commands, update_rank=True):
         graph = self.state.get_graph()
         fulfilled_orders = []
@@ -139,8 +143,7 @@ class Player(BasePlayer):
                 queue.extend(filtered_neighbors)
 
 
-            # TODO: do we want to leave super far away ones with a low value?
-            if order_fulfilled and self.order_value(order, len(path) - 1) > 0:
+            if order_fulfilled and self.is_fulfilled(order, len(path)-1):
                 fulfilled_orders.insert(0, order)
                 commands.append(self.send_command(order, path[::-1]))
                 self.mark_as_used(path, graph)
