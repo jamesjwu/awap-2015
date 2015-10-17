@@ -143,7 +143,7 @@ class Player(BasePlayer):
                 commands.append(self.send_command(order, path[::-1]))
                 self.mark_as_used(path, graph)
 
-        unfulfilled = [(o, v) for (o, v) in orders if o not in fulfilled_orders]
+        unfulfilled = deque([(o, v) for (o, v) in orders if o not in fulfilled_orders])
         return unfulfilled
 
     def step(self, state):
@@ -170,10 +170,10 @@ class Player(BasePlayer):
         unfulfilled = self.determine_stations(order_heuristics, commands)
 
         # Step 3: add new stations if worth
-        if (len(unfulfilled) > 0 and
-            len(self.stations) < self.state.graph.number_of_nodes() and
+        if (len(self.stations) < self.state.graph.number_of_nodes() and
             GAME_LENGTH - self.state.time >= STOP_BUILDING_THRESHOLD):
-            for (order, heuristic) in unfulfilled:
+            while unfulfilled:
+                (order, heuristic) = unfulfilled.popleft()
                 #print "order:", order, "heuristic:", heuristic
 
                 # If we have no money, stop trying to build
@@ -188,8 +188,9 @@ class Player(BasePlayer):
                     self.state.money -= self.new_station_cost()
                     self.stations.append(new_station)
 
-        # Step 4: Rerun step 2 (send more commands using new stations)
-        self.determine_stations(order_heuristics, commands, update_rank=False)
+                    # Rerun step 2 (find more paths to unfulfilled with new station)
+                    unfulfilled = self.determine_stations(unfulfilled, commands, update_rank=False)
+
         return commands
 
     def new_station_cost(self):
