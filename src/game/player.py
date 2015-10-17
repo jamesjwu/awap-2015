@@ -4,8 +4,9 @@ from base_player import BasePlayer
 from settings import *
 from collections import deque, defaultdict
 
-HAPPY_THRESHOLD = 20
 RANK_THRESHOLD = 3
+STATION_RANGE = 5
+STOP_BUILDING_THRESHOLD = 25
 
 class Player(BasePlayer):
 
@@ -153,19 +154,25 @@ class Player(BasePlayer):
         commands, unfulfilled = self.determine_stations(order_heuristics)
 
         # Step 3: add new stations if worth
-        if len(unfulfilled) > 0 and len(self.stations) < self.state.graph.number_of_nodes():
+        if (len(unfulfilled) > 0 and
+            len(self.stations) < self.state.graph.number_of_nodes() and
+            GAME_LENGTH - self.state.time >= STOP_BUILDING_THRESHOLD):
             for (order, heuristic) in unfulfilled:
                 print "order:", order, "heuristic:", heuristic
-                if self.happy(order, heuristic) > HAPPY_THRESHOLD:
-                    print "building a station at", order.node
-                    commands.append(self.build_command(order.node))
+
+                # If we have no money, stop trying to build
+                cost = self.new_station_cost()
+                if self.state.money < cost:
+                    break
+
+                new_station = self.find_happy_station(order, heuristic)
+                if new_station is not None:
+                    print "building a station at", new_station
+                    commands.append(self.build_command(new_station))
                     self.state.money -= self.new_station_cost()
-                    self.stations.append(order.node)
+                    self.stations.append(new_station)
 
-                    # for now since we're building on top of orders, just fulfill it immediately
-                    commands.append(self.send_command(order, [order.node]))
-
-        # Step 4: should probably rerun step 2 (send more commands using new station)
+        # Step 4: should probably rerun step 2 (send more commands using new stations)
 
         return commands
 
@@ -173,13 +180,19 @@ class Player(BasePlayer):
         """ Cost of building a new station """
         return self.station_costs[len(self.stations)]
 
-    def happy(self, order, heuristic):
+    def find_happy_station(self, order, heuristic):
         """
-        Compute the happiness we gain from building a new station at an
-        order location. -1 if we can't build
+        Compute the optimal location for adding a new station near
+        an unfulfilled station.
         """
-        cost = self.new_station_cost()
-        can_build = self.state.money >= cost
-        happiness = self.state.money - cost + order.money
-        #print "HAPPINESS:", happiness
-        return happiness if can_build else -1
+        # Get all neighbors within STATION_RANGE depth away from order node
+        neighbors = reduce(lambda x,y: x | y,
+                           [self.neighbor_map[order.node][d] for d in xrange(STATION_RANGE)])
+        # If there is already a station within range, don't build another
+        if set(self.stations) & neighbors:
+            return None
+
+        best_neighbor = max(list(neighbors), key=lambda v: self.rank_map[v])
+
+        # TODO: check if it's actually worth to build it here?
+        return best_neighbor
